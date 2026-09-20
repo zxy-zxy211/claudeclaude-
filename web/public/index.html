@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>银柴火 · 编导工作台</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%94%A5%3C/text%3E%3C/svg%3E" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">银</div>
+      <div class="brand-text"><strong>银柴火</strong><span>编导 AI 工作台 v1</span></div>
+    </div>
+    <nav class="nav" id="nav">
+      <button class="nav-item active" data-view="draft"><span class="nav-ico">✍️</span>新稿生产<em>模块二</em></button>
+      <button class="nav-item" data-view="revise"><span class="nav-ico">🔧</span>内容修改<em>模块三</em></button>
+      <button class="nav-item" data-view="card"><span class="nav-ico">🪪</span>博主卡库<em>模块一</em></button>
+      <button class="nav-item" data-view="sop"><span class="nav-ico">📑</span>流程 SOP</button>
+      <button class="nav-item" data-view="settings"><span class="nav-ico">⚙️</span>设置</button>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="status" id="status"><span class="dot"></span><span id="statusText">检查配置…</span></div>
+      <button class="ghost tiny" id="themeToggle">切换明暗</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <!-- 新稿生产 -->
+    <section class="view active" data-view="draft">
+      <header class="view-head">
+        <div><h1>新稿生产</h1><p>工单填完 → AI 出策划案 → <b>⛔你确认</b> → 开头策略 → <b>⛔你确认</b> → 四段式成稿</p></div>
+        <div class="steps" id="draftSteps">
+          <span class="step current" data-step="1">1 策划案</span>
+          <span class="step" data-step="2">2 开头结构</span>
+          <span class="step" data-step="3">3 成稿</span>
+        </div>
+      </header>
+      <div class="split">
+        <div class="panel form" id="draftForm">
+          <div class="field">
+            <label>博主卡</label>
+            <div class="row">
+              <select id="draftBlogger"></select>
+              <button class="ghost tiny" data-goto="card">管理</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>脚本类型</label>
+            <div class="chips" id="draftType">
+              <button class="chip active" data-v="人设故事">人设故事</button>
+              <button class="chip" data-v="观点">观点</button>
+              <button class="chip" data-v="vlog日常">vlog 日常</button>
+              <button class="chip" data-v="好物种草">好物种草</button>
+              <button class="chip" data-v="干货">干货</button>
+            </div>
+          </div>
+          <div class="field two">
+            <div>
+              <label>时长（分钟）</label>
+              <input type="number" id="draftMin" value="3" min="0.5" step="0.5" />
+            </div>
+            <div>
+              <label>目标字数 <small>200 字/分钟</small></label>
+              <output id="draftTarget" class="target">600 字</output>
+            </div>
+          </div>
+          <div class="field">
+            <label>本期主题 <small>可空，让 AI 从逐字稿提</small></label>
+            <input type="text" id="draftTopic" placeholder="留空 = AI 提炼后你审" />
+          </div>
+          <div class="field">
+            <label>逐字稿 <small id="draftScriptCount">0 字</small></label>
+            <textarea id="draftScript" rows="9" placeholder="直接贴逐字稿，或拖 .txt 文件进来"></textarea>
+          </div>
+          <div class="field">
+            <label>商单资料 / 产品图 / 截图</label>
+            <div class="drop" id="draftDrop">拖进来，或<button class="link" id="draftPick">选文件</button><small>图片走豆包视觉，.txt/.md 直接读文本</small></div>
+            <div class="files" id="draftFiles"></div>
+          </div>
+          <div class="field">
+            <label>对标链接 <small>2-3 条同选题数据最高的</small></label>
+            <textarea id="draftRefs" rows="3" placeholder="一行一条"></textarea>
+          </div>
+          <div class="actions">
+            <button class="primary" id="draftGo">① 出内容策划案</button>
+            <button class="ghost" id="draftReset">清空重开</button>
+          </div>
+        </div>
+        <div class="panel out">
+          <div class="out-head">
+            <div class="out-meta"><span id="draftWords" class="badge">0 字 · 0.0 分钟</span><span id="draftModel" class="badge sub"></span></div>
+            <div class="out-tools">
+              <button class="ghost tiny" data-copy="draftOut">复制</button>
+              <button class="ghost tiny" data-save="draftOut">下载 .md</button>
+            </div>
+          </div>
+          <div class="stream" id="draftOut"><div class="empty">左边填完工单，点「出内容策划案」。<br />到⛔确认关我会停下等你点头。</div></div>
+          <div class="gate" id="draftGate" hidden></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 内容修改 -->
+    <section class="view" data-view="revise">
+      <header class="view-head">
+        <div><h1>内容修改</h1><p>先给意见原话（截图最好）→ 再给完整脚本 → 出完整改稿 + 逐条核对表</p></div>
+      </header>
+      <div class="split">
+        <div class="panel form">
+          <div class="field">
+            <label>博主卡</label>
+            <select id="reviseBlogger"></select>
+          </div>
+          <div class="field">
+            <label>修改意见原话</label>
+            <textarea id="reviseNotes" rows="5" placeholder="贴原话；情绪词也照贴，AI 会拎出来让你翻译"></textarea>
+            <div class="drop small" id="reviseDrop">意见截图拖进来<button class="link" id="revisePick">选文件</button></div>
+            <div class="files" id="reviseFiles"></div>
+          </div>
+          <div class="field">
+            <label>要改的脚本全文 <small id="reviseCount">0 字</small></label>
+            <textarea id="reviseText" rows="12" placeholder="贴完整脚本"></textarea>
+          </div>
+          <label class="check"><input type="checkbox" id="reviseSingle" /> 单段模式（只改我贴的这一段，别动别处）</label>
+          <div class="actions">
+            <button class="primary" id="reviseGo">出修改稿</button>
+            <button class="ghost" id="reviseReset">清空</button>
+          </div>
+        </div>
+        <div class="panel out">
+          <div class="out-head">
+            <div class="out-meta"><span id="reviseWords" class="badge">0 字 · 0.0 分钟</span></div>
+            <div class="out-tools">
+              <button class="ghost tiny" data-copy="reviseOut">复制</button>
+              <button class="ghost tiny" data-save="reviseOut">下载 .md</button>
+            </div>
+          </div>
+          <div class="stream" id="reviseOut"><div class="empty">改完会带一张逐条核对表：每条意见改在哪、有没有半改。</div></div>
+          <div class="gate" id="reviseGate" hidden></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 博主卡库 -->
+    <section class="view" data-view="card">
+      <header class="view-head">
+        <div><h1>博主卡库</h1><p>一个博主一张卡，存在仓库 <code>bloggers/</code>。写稿时自动带上。</p></div>
+      </header>
+      <div class="split cards">
+        <div class="panel list">
+          <div class="list-head"><strong>已有卡</strong><button class="ghost tiny" id="cardNew">+ 新建</button></div>
+          <ul class="card-list" id="cardList"></ul>
+          <div class="build">
+            <strong>让 AI 建卡</strong>
+            <textarea id="cardSource" rows="6" placeholder="贴该博主过往 / 对标作品链接或逐字内容，10-20 条"></textarea>
+            <div class="drop small" id="cardDrop">作品截图也行<button class="link" id="cardPick">选文件</button></div>
+            <div class="files" id="cardFiles"></div>
+            <button class="primary block" id="cardGo">生成博主卡</button>
+          </div>
+        </div>
+        <div class="panel out">
+          <div class="out-head">
+            <input type="text" id="cardName" class="name-input" placeholder="博主名（存成 bloggers/xxx.md）" />
+            <div class="out-tools">
+              <button class="ghost tiny" id="cardSave">保存</button>
+              <button class="ghost tiny danger" id="cardDelete">删除</button>
+            </div>
+          </div>
+          <textarea id="cardEditor" class="editor" placeholder="选左边一张卡来编辑，或先让 AI 生成"></textarea>
+          <div class="stream ai" id="cardOut" hidden></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SOP -->
+    <section class="view" data-view="sop">
+      <header class="view-head"><div><h1>流程 SOP</h1><p>两个⛔是必须本人确认的关卡，AI 不得跳过。</p></div></header>
+      <div class="panel doc" id="sopDoc">加载中…</div>
+    </section>
+
+    <!-- 设置 -->
+    <section class="view" data-view="settings">
+      <header class="view-head"><div><h1>设置</h1><p>Key 存在浏览器本地；也可以写进 <code>web/.env</code>，浏览器就不碰 Key。</p></div></header>
+      <div class="panel form wide">
+        <div class="field">
+          <label>豆包 / 方舟 API Key <small>ARK_API_KEY</small></label>
+          <input type="password" id="setKey" placeholder="留空 = 用服务端 .env 里的" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label>模型 <small>模型名或接入点 ID（ep-…）</small></label>
+          <input type="text" id="setModel" placeholder="例：doubao-seed-1-6-250615 或 ep-2024…" />
+          <small class="hint">豆包型号会更新，填你控制台里实际可用的那个。</small>
+        </div>
+        <div class="field two">
+          <div><label>温度</label><input type="number" id="setTemp" value="0.8" min="0" max="1.5" step="0.1" /></div>
+          <div><label>接口地址</label><output id="setBase" class="target">—</output></div>
+        </div>
+        <div class="actions">
+          <button class="primary" id="setTest">测试连接</button>
+          <button class="ghost" id="setSave">保存到本地</button>
+        </div>
+        <div class="testout" id="setOut"></div>
+      </div>
+    </section>
+  </main>
+</div>
+<input type="file" id="filePicker" multiple hidden accept=".txt,.md,.markdown,image/*" />
+<div class="toast" id="toast" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>
