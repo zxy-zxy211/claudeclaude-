@@ -224,9 +224,13 @@ server.on('listening', () => {
   console.log(`  模型    : ${ARK_MODEL || '未配置（在网页「设置」里填也行）'}`);
   console.log(`\n  关掉这个窗口就等于关掉工作台。\n`);
   if (process.env.OPEN === '0') return;
-  const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+  // Windows 走 cmd /c start（不用 shell:true，否则 Node 22 会报 DEP0190 警告）
+  const [cmd, args] =
+    process.platform === 'win32'
+      ? ['cmd', ['/c', 'start', '', url]]
+      : [process.platform === 'darwin' ? 'open' : 'xdg-open', [url]];
   try {
-    const child = require('child_process').spawn(cmd, [url], { shell: process.platform === 'win32', stdio: 'ignore', detached: true });
+    const child = require('child_process').spawn(cmd, args, { stdio: 'ignore', detached: true });
     child.on('error', () => console.log('  （没能自动开浏览器，手动打开上面那个地址就行）'));
     child.unref();
   } catch {}
