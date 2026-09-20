@@ -266,3 +266,5 @@ input:focus, select:focus, textarea:focus { border-color: var(--ember); box-shad
 }
 
 .file-chip i { font-style: normal; color: var(--text-mute); font-size: 10.5px; }
+
+textarea.over { border-color: var(--ember); box-shadow: 0 0 0 3px rgba(255,122,61,.18); }

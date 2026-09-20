@@ -9,7 +9,7 @@ const state = {
   prompts: {},
   bloggers: [],
   settings: { key: '', model: '', temp: 0.8 },
-  files: { draft: [], revise: [], card: [] },
+  files: { draft: [], refs: [], revise: [], card: [] },
   chats: { draft: null, revise: null, card: null },
   step: 1,
   busy: false,
@@ -288,50 +288,58 @@ async function toBase64(file) {
   return btoa(bin);
 }
 
+/** 判断这个文件能不能吃：'image' / 'text' / null（null 时已经提示过用户） */
+function kindOf(file) {
+  if (file.type.startsWith('image/')) return 'image';
+  if (/\.(doc|ppt|xls)$/i.test(file.name)) {
+    toast(`${file.name}：老格式读不了，先用 Word/PPT 另存为 .docx / .pptx`, true);
+    return null;
+  }
+  if (PLAIN.test(file.name) || DOCS.test(file.name) || /\.pdf$/i.test(file.name)) return 'text';
+  toast(`${file.name}：不认识这个格式。图片、PDF、Word(.docx)、PPT(.pptx)、txt 都行。`, true);
+  return null;
+}
+
+/** 把一个非图片文件读成纯文字 */
+async function fileToText(file) {
+  let text;
+  if (PLAIN.test(file.name)) {
+    text = await file.text();
+  } else if (/\.pdf$/i.test(file.name)) {
+    text = await pdfToText(file);
+    if (text.replace(/【第 \d+ 页】|\s/g, '').length < 10) {
+      toast(`${file.name}：这份 PDF 里几乎没有文字（多半是扫描件/图片型），建议改用截图。`, true);
+    }
+  } else {
+    const r = await fetch('/api/extract', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: file.name, data: await toBase64(file) }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || '解析失败');
+    text = data.text;
+    if (data.warning) toast(`${file.name}：${data.warning}`, true);
+  }
+  return text.length > MAX_CHARS ? text.slice(0, MAX_CHARS) + '\n…（太长了，后面截断了）' : text;
+}
+
 async function readFiles(fileList, key, boxId) {
   for (const file of [...fileList]) {
-    if (file.type.startsWith('image/')) {
+    const kind = kindOf(file);
+    if (!kind) continue;
+    if (kind === 'image') {
       const fr = new FileReader();
       fr.onload = () => { state.files[key].push({ name: file.name, kind: 'image', data: fr.result }); renderFiles(key, boxId); };
       fr.readAsDataURL(file);
       continue;
     }
-    if (/\.(doc|ppt|xls)$/i.test(file.name)) {
-      toast(`${file.name}：老格式读不了，先用 Word/PPT 另存为 .docx / .pptx`, true);
-      continue;
-    }
-    if (!PLAIN.test(file.name) && !DOCS.test(file.name) && !/\.pdf$/i.test(file.name)) {
-      toast(`${file.name}：不认识这个格式。图片、PDF、Word(.docx)、PPT(.pptx)、txt 都行。`, true);
-      continue;
-    }
-
     const entry = { name: file.name, kind: 'text', data: '', chars: 0, busy: true };
     state.files[key].push(entry);
     renderFiles(key, boxId);
-
     try {
-      let text;
-      if (PLAIN.test(file.name)) {
-        text = await file.text();
-      } else if (/\.pdf$/i.test(file.name)) {
-        text = await pdfToText(file);
-        if (text.replace(/【第 \d+ 页】|\s/g, '').length < 10) {
-          toast(`${file.name}：这份 PDF 里几乎没有文字（多半是扫描件/图片型），建议改用截图。`, true);
-        }
-      } else {
-        const r = await fetch('/api/extract', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ name: file.name, data: await toBase64(file) }),
-        });
-        const data = await r.json();
-        if (!r.ok) throw new Error(data.error || '解析失败');
-        text = data.text;
-        if (data.warning) toast(`${file.name}：${data.warning}`, true);
-      }
-      if (text.length > MAX_CHARS) text = text.slice(0, MAX_CHARS) + '\n…（太长了，后面截断了）';
-      entry.data = text;
-      entry.chars = text.replace(/\s/g, '').length;
+      entry.data = await fileToText(file);
+      entry.chars = entry.data.replace(/\s/g, '').length;
     } catch (e) {
       toast(`${file.name} 解析失败：${e.message}`, true);
       state.files[key].splice(state.files[key].indexOf(entry), 1);
@@ -340,6 +348,32 @@ async function readFiles(fileList, key, boxId) {
       renderFiles(key, boxId);
     }
   }
+}
+
+/** 让一个输入框本身能接文件：拖进去自动读成文字，追加到框里 */
+function wireTextareaDrop(areaId) {
+  const ta = $(areaId);
+  ['dragenter', 'dragover'].forEach((e) => ta.addEventListener(e, (ev) => { ev.preventDefault(); ta.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((e) => ta.addEventListener(e, () => ta.classList.remove('over')));
+  ta.addEventListener('drop', async (ev) => {
+    if (!ev.dataTransfer.files.length) return;
+    ev.preventDefault();
+    for (const file of [...ev.dataTransfer.files]) {
+      if (file.type.startsWith('image/')) { toast('图片请拖到下面的资料框，那儿能连图一起发给豆包', true); continue; }
+      if (kindOf(file) !== 'text') continue;
+      const before = ta.value;
+      ta.value = before + (before ? '\n\n' : '') + `【${file.name}】读取中…`;
+      try {
+        const text = await fileToText(file);
+        ta.value = before + (before ? '\n\n' : '') + text;
+        toast(`${file.name} 已读进来：${text.replace(/\s/g, '').length} 字`);
+      } catch (e) {
+        ta.value = before;
+        toast(`${file.name} 解析失败：${e.message}`, true);
+      }
+      ta.dispatchEvent(new Event('input'));
+    }
+  });
 }
 
 function textFilesBlock(key) {
@@ -436,8 +470,9 @@ function workOrder() {
     `本期主题：${$('draftTopic').value.trim() || '（空，你从逐字稿里提，我来审）'}`,
     `时长：${min} 分钟 → 目标 ${Math.round(min * 200)} 字（200 字/分钟）`,
     '',
-    '对标链接：',
-    $('draftRefs').value.trim() || '（无）',
+    '对标参考：',
+    $('draftRefs').value.trim() || '（无文字说明）',
+    textFilesBlock('refs'),
     '',
     '逐字稿：',
     '"""',
@@ -711,21 +746,25 @@ async function init() {
   updateCounters();
 
   wireDrop('draftDrop', 'draftPick', 'draft', 'draftFiles');
+  wireDrop('refsDrop', 'refsPick', 'refs', 'refsFiles');
+  ['draftScript', 'reviseText', 'reviseNotes', 'cardSource'].forEach(wireTextareaDrop);
   wireDrop('reviseDrop', 'revisePick', 'revise', 'reviseFiles');
   wireDrop('cardDrop', 'cardPick', 'card', 'cardFiles');
 
   $('draftGo').addEventListener('click', () => {
-    if (!$('draftScript').value.trim() && !state.files.draft.length) return toast('先给逐字稿或商单资料', true);
+    if (!$('draftScript').value.trim() && !state.files.draft.length && !state.files.refs.length) return toast('先给逐字稿或商单资料', true);
     state.chats.draft = newChat('draft');
     $('draftOut').innerHTML = '';
     renderGate('draftGate', null);
     setStep(1);
-    send('draft', { userText: workOrder(), files: state.files.draft, outId: 'draftOut', label: '你：提交工单', onDone: gate1 });
+    send('draft', { userText: workOrder(), files: [...state.files.draft, ...state.files.refs], outId: 'draftOut', label: '你：提交工单', onDone: gate1 });
   });
   $('draftReset').addEventListener('click', () => {
     state.chats.draft = null;
     state.files.draft = [];
+    state.files.refs = [];
     renderFiles('draft', 'draftFiles');
+    renderFiles('refs', 'refsFiles');
     $('draftOut').innerHTML = '<div class="empty">左边填完工单，点「出内容策划案」。</div>';
     renderGate('draftGate', null);
     setStep(1);

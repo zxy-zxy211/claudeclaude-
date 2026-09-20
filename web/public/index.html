@@ -73,7 +73,7 @@
           </div>
           <div class="field">
             <label>逐字稿 <small id="draftScriptCount">0 字</small></label>
-            <textarea id="draftScript" rows="9" placeholder="直接贴逐字稿，或拖 .txt 文件进来"></textarea>
+            <textarea id="draftScript" rows="9" placeholder="直接贴逐字稿，或把 .txt / Word / PDF 拖到这个框里（会自动读成文字）"></textarea>
           </div>
           <div class="field">
             <label>商单资料 <small>PDF / Word / PPT / 截图</small></label>
@@ -82,7 +82,9 @@
           </div>
           <div class="field">
             <label>对标参考 <small>2-3 条同选题数据最高的</small></label>
-            <textarea id="draftRefs" rows="3" placeholder="AI 打不开链接：贴对标的标题 / 开头原话 / 结构要点，或把截图拖到上面那个框"></textarea>
+            <textarea id="draftRefs" rows="3" placeholder="AI 打不开链接：贴对标的标题 / 开头原话 / 结构要点"></textarea>
+            <div class="drop" id="refsDrop">对标的截图 / PDF / Word 拖这儿，或<button class="link" id="refsPick">选文件</button></div>
+            <div class="files" id="refsFiles"></div>
           </div>
           <div class="actions">
             <button class="primary" id="draftGo">① 出内容策划案</button>
@@ -122,7 +124,7 @@
           </div>
           <div class="field">
             <label>要改的脚本全文 <small id="reviseCount">0 字</small></label>
-            <textarea id="reviseText" rows="12" placeholder="贴完整脚本"></textarea>
+            <textarea id="reviseText" rows="12" placeholder="贴完整脚本，或把 Word / PDF / txt 拖进这个框"></textarea>
           </div>
           <label class="check"><input type="checkbox" id="reviseSingle" /> 单段模式（只改我贴的这一段，别动别处）</label>
           <div class="actions">
