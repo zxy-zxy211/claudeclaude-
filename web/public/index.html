@@ -81,8 +81,8 @@
             <div class="files" id="draftFiles"></div>
           </div>
           <div class="field">
-            <label>对标链接 <small>2-3 条同选题数据最高的</small></label>
-            <textarea id="draftRefs" rows="3" placeholder="一行一条"></textarea>
+            <label>对标参考 <small>2-3 条同选题数据最高的</small></label>
+            <textarea id="draftRefs" rows="3" placeholder="AI 打不开链接：贴对标的标题 / 开头原话 / 结构要点，或把截图拖到上面那个框"></textarea>
           </div>
           <div class="actions">
             <button class="primary" id="draftGo">① 出内容策划案</button>
@@ -155,8 +155,8 @@
           <ul class="card-list" id="cardList"></ul>
           <div class="build">
             <strong>让 AI 建卡</strong>
-            <textarea id="cardSource" rows="6" placeholder="贴该博主过往 / 对标作品链接或逐字内容，10-20 条"></textarea>
-            <div class="drop small" id="cardDrop">作品截图也行<button class="link" id="cardPick">选文件</button></div>
+            <textarea id="cardSource" rows="6" placeholder="贴作品正文 / 口播逐字稿，10-20 条。&#10;注意：只贴链接没用，AI 打不开网页——用截图或正文文本。"></textarea>
+            <div class="drop small" id="cardDrop">笔记<b>截图拖进来</b>最省事，AI 能读图上的字<button class="link" id="cardPick">选文件</button></div>
             <div class="files" id="cardFiles"></div>
             <button class="primary block" id="cardGo">生成博主卡</button>
           </div>
