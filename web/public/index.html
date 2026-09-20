@@ -76,8 +76,8 @@
             <textarea id="draftScript" rows="9" placeholder="直接贴逐字稿，或拖 .txt 文件进来"></textarea>
           </div>
           <div class="field">
-            <label>商单资料 / 产品图 / 截图</label>
-            <div class="drop" id="draftDrop">拖进来，或<button class="link" id="draftPick">选文件</button><small>图片走豆包视觉，.txt/.md 直接读文本</small></div>
+            <label>商单资料 <small>PDF / Word / PPT / 截图</small></label>
+            <div class="drop" id="draftDrop">拖进来，或<button class="link" id="draftPick">选文件</button><small>PDF / Word(.docx) / PPT(.pptx) / txt 自动提取文字，图片走豆包视觉</small></div>
             <div class="files" id="draftFiles"></div>
           </div>
           <div class="field">
@@ -207,7 +207,7 @@
     </section>
   </main>
 </div>
-<input type="file" id="filePicker" multiple hidden accept=".txt,.md,.markdown,image/*" />
+<input type="file" id="filePicker" multiple hidden accept=".txt,.md,.markdown,.csv,.json,.pdf,.docx,.pptx,image/*" />
 <div class="toast" id="toast" hidden></div>
 <script src="app.js"></script>
 </body>

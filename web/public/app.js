@@ -246,27 +246,100 @@ function renderGate(gateId, cfg) {
 function renderFiles(key, boxId) {
   const box = $(boxId);
   box.innerHTML = state.files[key]
-    .map((f, i) => `<span class="file-chip">${f.kind === 'image' ? `<img src="${f.data}" alt="" />` : '📄'}<b>${esc(f.name)}</b><button data-i="${i}">✕</button></span>`)
+    .map((f, i) => {
+      const icon = f.kind === 'image' ? `<img src="${f.data}" alt="" />` : f.busy ? '⏳' : '📄';
+      const note = f.busy ? '<i>解析中…</i>' : f.kind === 'text' ? `<i>${f.chars} 字</i>` : '';
+      return `<span class="file-chip">${icon}<b>${esc(f.name)}</b>${note}<button data-i="${i}">✕</button></span>`;
+    })
     .join('');
   box.querySelectorAll('button').forEach((b) =>
     b.addEventListener('click', () => { state.files[key].splice(Number(b.dataset.i), 1); renderFiles(key, boxId); })
   );
 }
 
-function readFiles(fileList, key, boxId) {
-  [...fileList].forEach((file) => {
-    const isImg = file.type.startsWith('image/');
-    if (!isImg && !/\.(txt|md|markdown|csv|json)$/i.test(file.name)) {
-      toast(`${file.name}：只吃图片和 txt/md。PDF/PPT 请截图或复制文字。`, true);
-      return;
+const PLAIN = /\.(txt|md|markdown|csv|json)$/i;
+const DOCS = /\.(docx|pptx)$/i;
+const MAX_CHARS = 200000;
+
+/* PDF：用项目内置的 pdf.js 解析，不连外网 */
+let pdfjs = null;
+async function pdfToText(file) {
+  if (!pdfjs) {
+    pdfjs = await import('./vendor/pdfjs/pdf.min.mjs');
+    pdfjs.GlobalWorkerOptions.workerSrc = 'vendor/pdfjs/pdf.worker.min.mjs';
+  }
+  const doc = await pdfjs.getDocument({
+    data: new Uint8Array(await file.arrayBuffer()),
+    cMapUrl: 'vendor/pdfjs/cmaps/',
+    cMapPacked: true,
+  }).promise;
+  const pages = [];
+  for (let i = 1; i <= doc.numPages; i++) {
+    const tc = await (await doc.getPage(i)).getTextContent();
+    pages.push(`【第 ${i} 页】\n` + tc.items.map((it) => (it.str || '') + (it.hasEOL ? '\n' : '')).join(''));
+  }
+  return pages.join('\n\n').trim();
+}
+
+async function toBase64(file) {
+  const buf = new Uint8Array(await file.arrayBuffer());
+  let bin = '';
+  for (let i = 0; i < buf.length; i += 8192) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 8192));
+  return btoa(bin);
+}
+
+async function readFiles(fileList, key, boxId) {
+  for (const file of [...fileList]) {
+    if (file.type.startsWith('image/')) {
+      const fr = new FileReader();
+      fr.onload = () => { state.files[key].push({ name: file.name, kind: 'image', data: fr.result }); renderFiles(key, boxId); };
+      fr.readAsDataURL(file);
+      continue;
     }
-    const fr = new FileReader();
-    fr.onload = () => {
-      state.files[key].push({ name: file.name, kind: isImg ? 'image' : 'text', data: fr.result });
+    if (/\.(doc|ppt|xls)$/i.test(file.name)) {
+      toast(`${file.name}：老格式读不了，先用 Word/PPT 另存为 .docx / .pptx`, true);
+      continue;
+    }
+    if (!PLAIN.test(file.name) && !DOCS.test(file.name) && !/\.pdf$/i.test(file.name)) {
+      toast(`${file.name}：不认识这个格式。图片、PDF、Word(.docx)、PPT(.pptx)、txt 都行。`, true);
+      continue;
+    }
+
+    const entry = { name: file.name, kind: 'text', data: '', chars: 0, busy: true };
+    state.files[key].push(entry);
+    renderFiles(key, boxId);
+
+    try {
+      let text;
+      if (PLAIN.test(file.name)) {
+        text = await file.text();
+      } else if (/\.pdf$/i.test(file.name)) {
+        text = await pdfToText(file);
+        if (text.replace(/【第 \d+ 页】|\s/g, '').length < 10) {
+          toast(`${file.name}：这份 PDF 里几乎没有文字（多半是扫描件/图片型），建议改用截图。`, true);
+        }
+      } else {
+        const r = await fetch('/api/extract', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ name: file.name, data: await toBase64(file) }),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || '解析失败');
+        text = data.text;
+        if (data.warning) toast(`${file.name}：${data.warning}`, true);
+      }
+      if (text.length > MAX_CHARS) text = text.slice(0, MAX_CHARS) + '\n…（太长了，后面截断了）';
+      entry.data = text;
+      entry.chars = text.replace(/\s/g, '').length;
+    } catch (e) {
+      toast(`${file.name} 解析失败：${e.message}`, true);
+      state.files[key].splice(state.files[key].indexOf(entry), 1);
+    } finally {
+      entry.busy = false;
       renderFiles(key, boxId);
-    };
-    isImg ? fr.readAsDataURL(file) : fr.readAsText(file);
-  });
+    }
+  }
 }
 
 function textFilesBlock(key) {

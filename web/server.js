@@ -68,7 +68,7 @@ function buildPrompts() {
 
 /* ---------- 工具 ---------- */
 
-const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8', '.ico': 'image/x-icon' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8', '.ico': 'image/x-icon', '.bcmap': 'application/octet-stream', '.txt': 'text/plain; charset=utf-8' };
 
 function json(res, code, body) {
   const s = JSON.stringify(body);
@@ -112,6 +112,77 @@ function listBloggers() {
       updated: fs.statSync(path.join(BLOGGERS, f)).mtime.toISOString(),
     }))
     .sort((a, b) => Number(a.template) - Number(b.template) || a.name.localeCompare(b.name, 'zh'));
+}
+
+
+/* ---------- 文档解析：docx / pptx（自己解 zip，不装依赖） ---------- */
+
+const zlib = require('zlib');
+
+/** 按名字条件取出 zip 里的文件，返回 [{name, data}] */
+function unzip(buf, match) {
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= 0 && i > buf.length - 70000; i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('文件打不开（不是有效的 docx/pptx）');
+  const count = buf.readUInt16LE(eocd + 10);
+  let off = buf.readUInt32LE(eocd + 16);
+  const out = [];
+  for (let i = 0; i < count && off + 46 <= buf.length; i++) {
+    if (buf.readUInt32LE(off) !== 0x02014b50) break;
+    const method = buf.readUInt16LE(off + 10);
+    const compSize = buf.readUInt32LE(off + 20);
+    const nameLen = buf.readUInt16LE(off + 28);
+    const extraLen = buf.readUInt16LE(off + 30);
+    const commentLen = buf.readUInt16LE(off + 32);
+    const localOff = buf.readUInt32LE(off + 42);
+    const name = buf.toString('utf8', off + 46, off + 46 + nameLen);
+    if (match(name)) {
+      const lNameLen = buf.readUInt16LE(localOff + 26);
+      const lExtraLen = buf.readUInt16LE(localOff + 28);
+      const start = localOff + 30 + lNameLen + lExtraLen;
+      const raw = buf.subarray(start, start + compSize);
+      try {
+        out.push({ name, data: method === 0 ? Buffer.from(raw) : zlib.inflateRawSync(raw) });
+      } catch (e) {
+        // 单个条目解不开就跳过，别让整份文件失败
+      }
+    }
+    off += 46 + nameLen + extraLen + commentLen;
+  }
+  return out;
+}
+
+function xmlToText(xml, paraTag) {
+  return xml
+    .replace(new RegExp(`<${paraTag}[^>]*/>`, 'g'), '\n')
+    .replace(new RegExp(`</${paraTag}>`, 'g'), '\n')
+    .replace(/<(w|a):tab[^>]*\/>/g, '\t')
+    .replace(/<(w|a):br[^>]*\/>/g, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&amp;/g, '&')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function docToText(name, buf) {
+  const ext = (name.match(/\.([a-z0-9]+)$/i) || [, ''])[1].toLowerCase();
+  if (ext === 'docx') {
+    const parts = unzip(buf, (n) => n === 'word/document.xml');
+    if (!parts.length) throw new Error('这份 .docx 里没找到正文');
+    return xmlToText(parts[0].data.toString('utf8'), 'w:p');
+  }
+  if (ext === 'pptx') {
+    const slides = unzip(buf, (n) => /^ppt\/slides\/slide\d+\.xml$/.test(n))
+      .sort((a, b) => Number(a.name.match(/\d+/)[0]) - Number(b.name.match(/\d+/)[0]));
+    if (!slides.length) throw new Error('这份 .pptx 里没找到幻灯片');
+    return slides.map((s, i) => `【第 ${i + 1} 页】\n${xmlToText(s.data.toString('utf8'), 'a:p')}`).join('\n\n');
+  }
+  throw new Error('只认 .docx 和 .pptx（老的 .doc/.ppt 请先另存为新格式）');
 }
 
 /* ---------- 豆包代理 ---------- */
@@ -198,10 +269,22 @@ const server = http.createServer(async (req, res) => {
       if (fs.existsSync(file)) fs.unlinkSync(file);
       return json(res, 200, { ok: true, bloggers: listBloggers() });
     }
+    if (p === '/api/extract' && req.method === 'POST') {
+      const body = await readBody(req, 40);
+      const buf = Buffer.from(String(body.data || ''), 'base64');
+      if (!buf.length) return json(res, 400, { error: '文件是空的' });
+      const text = docToText(String(body.name || ''), buf);
+      if (text.replace(/\s/g, '').length < 10) {
+        return json(res, 200, { text, warning: '几乎没提取到文字 —— 这份文件里多半是图片/扫描件，直接截图拖进来更靠谱。' });
+      }
+      return json(res, 200, { text });
+    }
     if (p === '/api/chat' && req.method === 'POST') return proxyChat(req, res, await readBody(req));
 
     // 静态
-    const rel = p === '/' ? 'index.html' : p.replace(/^\/+/, '');
+    let rel;
+    try { rel = decodeURIComponent(p === '/' ? 'index.html' : p.replace(/^\/+/, '')); }
+    catch { rel = p.replace(/^\/+/, ''); } // 路径里可能有中文，要解码
     const file = path.join(PUBLIC, rel);
     if (!file.startsWith(PUBLIC) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
       res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
