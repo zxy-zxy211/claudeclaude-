@@ -29,13 +29,17 @@
 
 ### 装一次
 
-```bash
-cp web/.env.example web/.env      # 填 ARK_API_KEY 和 ARK_MODEL
-node web/server.js                # 打开 http://localhost:5173
-```
+1. **装 Node.js**：去 https://nodejs.org 下 LTS 版，一路下一步（只用装这一个东西）。
+2. **下载这个项目**：GitHub 页面 → 绿色 `Code` 按钮 → `Download ZIP` → 解压。
+3. **双击启动**：Mac 双击 `启动-Mac.command`，Windows 双击 `启动-Windows.bat`。浏览器会自动打开。
+4. **填 Key**：网页里点左下「设置」→ 粘贴火山方舟的 API Key 和模型名 → 「测试连接」→ 看到"连接正常"就成了。
 
-零依赖，不用 npm install，只要有 Node 18+。Key 也可以不写进 `.env`，直接在网页「设置」里填（存在你这台机器的浏览器里）。
-模型填火山方舟控制台里实际可用的那个（模型名或 `ep-` 接入点 ID）—— 豆包型号会更新，别照抄文档里的例子。
+Key 存在你这台电脑的浏览器里，不上传任何地方。也可以改走 `web/.env`（照 `web/.env.example` 复制一份填），那样浏览器完全不碰 Key。
+
+零依赖，不用 npm install。端口 5173 被占用会自动顺延到 5174。
+命令行启动也行：`node web/server.js`（加 `OPEN=0` 不自动开浏览器）。
+
+模型填火山方舟控制台里实际可用的那个（模型名或 `ep-` 接入点 ID）—— 豆包型号会更新，别照抄任何文档里的例子。
 
 ### 四个页面
 

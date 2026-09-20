@@ -144,7 +144,15 @@ async function proxyChat(req, res, body) {
 
   if (!upstream.ok || !upstream.body) {
     const text = await upstream.text().catch(() => '');
-    return json(res, upstream.status, { error: `方舟返回 ${upstream.status}`, detail: text.slice(0, 2000) });
+    const hint =
+      upstream.status === 401 || upstream.status === 403
+        ? 'API Key 不对或没权限：回控制台把 Key 重新复制一遍（别漏字符），确认用的是方舟的 Key。'
+        : upstream.status === 404
+          ? `找不到模型「${model}」：确认这个模型在控制台已开通，或改用 ep- 开头的接入点 ID。`
+          : upstream.status === 429
+            ? '调用太频繁或额度用完了：等一下再试，或去控制台看额度。'
+            : `方舟返回 ${upstream.status}`;
+    return json(res, upstream.status, { error: hint, detail: text.slice(0, 2000) });
   }
 
   res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache, no-transform', connection: 'keep-alive', 'x-accel-buffering': 'no' });
@@ -207,9 +215,33 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`\n  银柴火·编导 AI 工作台  →  http://localhost:${PORT}`);
+/* 端口被占就往后顺延，最多试 6 个；起来后自动开浏览器（OPEN=0 可关） */
+server.on('listening', () => {
+  const url = `http://localhost:${server.address().port}`;
+  console.log(`\n  银柴火·编导 AI 工作台  →  ${url}`);
   console.log(`  方舟地址: ${ARK_BASE}`);
-  console.log(`  API Key : ${process.env.ARK_API_KEY ? '已从 .env 读到' : '未配置（可在网页「设置」里填）'}`);
-  console.log(`  模型    : ${ARK_MODEL || '未配置（可在网页「设置」里填）'}\n`);
+  console.log(`  API Key : ${process.env.ARK_API_KEY ? '已从 .env 读到' : '未配置（在网页「设置」里填也行）'}`);
+  console.log(`  模型    : ${ARK_MODEL || '未配置（在网页「设置」里填也行）'}`);
+  console.log(`\n  关掉这个窗口就等于关掉工作台。\n`);
+  if (process.env.OPEN === '0') return;
+  const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+  try {
+    const child = require('child_process').spawn(cmd, [url], { shell: process.platform === 'win32', stdio: 'ignore', detached: true });
+    child.on('error', () => console.log('  （没能自动开浏览器，手动打开上面那个地址就行）'));
+    child.unref();
+  } catch {}
 });
+
+function start(port, tries = 0) {
+  server.once('error', (e) => {
+    if (e.code === 'EADDRINUSE' && tries < 5) {
+      console.log(`  端口 ${port} 被占用了，换 ${port + 1} 试试…`);
+      return start(port + 1, tries + 1);
+    }
+    console.error('\n  启动失败：' + e.message + '\n');
+    process.exit(1);
+  });
+  server.listen(port);
+}
+
+start(PORT);
