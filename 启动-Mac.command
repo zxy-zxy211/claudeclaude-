@@ -2,6 +2,18 @@
 # 双击这个文件就能开工作台（Mac）
 cd "$(dirname "$0")" || exit 1
 
+if [ ! -f "web/server.js" ]; then
+  echo ""
+  echo "  这里找不到 web/server.js，当前位置是："
+  echo "  $(pwd)"
+  echo ""
+  echo "  常见原因：没解压就双击，或者这个文件被单独拷了出来。"
+  echo "  它必须和 web 文件夹放在同一层。"
+  echo ""
+  read -r -p "  按回车关闭…" _
+  exit 1
+fi
+
 if ! command -v node >/dev/null 2>&1; then
   echo ""
   echo "  没找到 Node.js —— 先去 https://nodejs.org 下载 LTS 版装上，再双击这个文件。"
@@ -13,5 +25,8 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 
 echo "  正在启动，浏览器会自动打开…（关掉这个窗口就等于关掉工作台）"
+echo ""
 node web/server.js
-read -r -p "  服务已停止，按回车关闭…" _
+echo ""
+echo "  服务已停止。上面若有报错，把它截图发给 Claude。"
+read -r -p "  按回车关闭…" _
